@@ -1,0 +1,97 @@
+.recommendations-page {
+  padding: 20px 0;
+}
+
+.ingredient-card {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.ingredient-card.original {
+  border-left: 4px solid #dc3545;
+}
+
+.ingredient-card.alternative {
+  border-left: 4px solid #28a745;
+}
+
+.ingredient-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.ingredient-header h3 {
+  margin: 0;
+  color: #333;
+}
+
+.carbon-badge {
+  padding: 6px 12px;
+  background: #dc3545;
+  color: white;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.carbon-badge.lower {
+  background: #28a745;
+}
+
+.reduction-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  background: #17a2b8;
+  color: white;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.ingredient-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-item {
+  display: flex;
+  gap: 8px;
+}
+
+.detail-item .label {
+  font-weight: 600;
+  color: #555;
+  min-width: 150px;
+}
+
+.detail-item .score {
+  font-weight: bold;
+  color: #667eea;
+  font-size: 18px;
+}
+
+.alternatives-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+@media (max-width: 768px) {
+  .alternatives-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .ingredient-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
