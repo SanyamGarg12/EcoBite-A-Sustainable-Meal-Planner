@@ -126,23 +126,45 @@ router.get('/stats/:user_id', async (req, res) => {
       [userId]
     );
     
+    // Helper to safely parse float, handling null
+    const safeParseFloat = (value) => {
+      if (value === null || value === undefined || value === 'null') {
+        return 0;
+      }
+      const parsed = parseFloat(value);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const safeParseInt = (value) => {
+      if (value === null || value === undefined || value === 'null') {
+        return 0;
+      }
+      const parsed = parseInt(value);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
     res.json({
-      current_week: currentWeek.length > 0 ? currentWeek[0] : {
+      current_week: currentWeek.length > 0 ? {
+        week_start_date: currentWeek[0].week_start_date,
+        total_carbon_footprint: safeParseFloat(currentWeek[0].total_carbon_footprint),
+        total_meals: safeParseInt(currentWeek[0].total_meals),
+        average_carbon_per_meal: safeParseFloat(currentWeek[0].average_carbon_per_meal)
+      } : {
         week_start_date: weekStart,
         total_carbon_footprint: 0,
         total_meals: 0,
         average_carbon_per_meal: 0
       },
       last_7_days: {
-        total_carbon_footprint: parseFloat(last7Days[0].total || 0),
-        meal_count: last7Days[0].meal_count || 0
+        total_carbon_footprint: safeParseFloat(last7Days[0]?.total),
+        meal_count: safeParseInt(last7Days[0]?.meal_count)
       },
       all_time: {
-        total_carbon_footprint: parseFloat(allTime[0].total || 0),
-        meal_count: allTime[0].meal_count || 0,
-        average_per_meal: parseFloat(allTime[0].average || 0)
+        total_carbon_footprint: safeParseFloat(allTime[0]?.total),
+        meal_count: safeParseInt(allTime[0]?.meal_count),
+        average_per_meal: safeParseFloat(allTime[0]?.average)
       },
-      weekly_average: parseFloat(weeklyAvg[0].avg_weekly || 0)
+      weekly_average: safeParseFloat(weeklyAvg[0]?.avg_weekly)
     });
   } catch (error) {
     console.error('Error fetching stats:', error);

@@ -9,6 +9,48 @@ const api = axios.create({
   },
 });
 
+// Add token to requests if available
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Handle 401 errors (unauthorized)
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Auth API
+export const login = async (email, password) => {
+  const response = await api.post('/auth/login', { email, password });
+  return response.data;
+};
+
+export const register = async (username, email, password) => {
+  const response = await api.post('/auth/register', { username, email, password });
+  return response.data;
+};
+
+export const verifyToken = async () => {
+  const response = await api.get('/auth/verify');
+  return response.data;
+};
+
 // Ingredients API
 export const getIngredients = async () => {
   const response = await api.get('/ingredients');
@@ -40,8 +82,9 @@ export const calculateIngredient = async (ingredientId, quantity) => {
 };
 
 // Meals API
-export const getMeals = async () => {
-  const response = await api.get('/meals');
+export const getMeals = async (userId = null) => {
+  const params = userId ? { user_id: userId } : {};
+  const response = await api.get('/meals', { params });
   return response.data;
 };
 
@@ -101,7 +144,21 @@ export const getStats = async (userId) => {
   return response.data;
 };
 
+// Insights API
+export const getMealPatterns = async (userId) => {
+  const response = await api.get(`/insights/patterns/${userId}`);
+  return response.data;
+};
+
+export const getNutritionInsights = async (userId) => {
+  const response = await api.get(`/insights/nutrition/${userId}`);
+  return response.data;
+};
+
 export default {
+  login,
+  register,
+  verifyToken,
   getIngredients,
   getIngredientById,
   searchIngredients,

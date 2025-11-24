@@ -2,12 +2,21 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 
-// Get all meals (for demo, we'll skip user authentication for now)
+// Get all meals for a user
 router.get('/', async (req, res) => {
   try {
-    const [meals] = await db.execute(
-      'SELECT * FROM meals ORDER BY created_at DESC'
-    );
+    const { user_id } = req.query;
+    let query = 'SELECT * FROM meals';
+    const params = [];
+    
+    if (user_id) {
+      query += ' WHERE user_id = ?';
+      params.push(user_id);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    const [meals] = await db.execute(query, params);
     res.json(meals);
   } catch (error) {
     console.error('Error fetching meals:', error);
@@ -150,7 +159,8 @@ router.post('/:id/log', async (req, res) => {
       return res.status(404).json({ error: 'Meal not found' });
     }
     
-    const carbonFootprint = meals[0].total_carbon_footprint;
+    // Ensure carbon footprint is a number
+    const carbonFootprint = parseFloat(meals[0].total_carbon_footprint) || 0;
     
     // Insert daily meal log
     await db.execute(
@@ -171,10 +181,25 @@ router.post('/:id/log', async (req, res) => {
 
 // Helper function to get week start date (Monday)
 function getWeekStartDate(date) {
-  const d = new Date(date);
+  // Handle both Date objects and date strings (YYYY-MM-DD)
+  let d;
+  if (typeof date === 'string') {
+    // Parse date string as local date to avoid timezone issues
+    const [year, month, day] = date.split('-').map(Number);
+    d = new Date(year, month - 1, day);
+  } else {
+    d = new Date(date);
+  }
+  
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-  return new Date(d.setDate(diff)).toISOString().split('T')[0];
+  const weekStart = new Date(d.setDate(diff));
+  
+  // Format as YYYY-MM-DD in local timezone
+  const year = weekStart.getFullYear();
+  const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+  const dayOfMonth = String(weekStart.getDate()).padStart(2, '0');
+  return `${year}-${month}-${dayOfMonth}`;
 }
 
 // Helper function to update weekly tracker
@@ -187,8 +212,11 @@ async function updateWeeklyTracker(userId, weekStart, carbonFootprint) {
     
     if (existing.length > 0) {
       const tracker = existing[0];
-      const newTotal = parseFloat(tracker.total_carbon_footprint) + carbonFootprint;
-      const newMealCount = tracker.total_meals + 1;
+      // Ensure both values are parsed as floats to avoid string concatenation
+      const currentTotal = parseFloat(tracker.total_carbon_footprint) || 0;
+      const newCarbon = parseFloat(carbonFootprint) || 0;
+      const newTotal = currentTotal + newCarbon;
+      const newMealCount = parseInt(tracker.total_meals) + 1;
       const newAverage = newTotal / newMealCount;
       
       await db.execute(
@@ -196,9 +224,10 @@ async function updateWeeklyTracker(userId, weekStart, carbonFootprint) {
         [newTotal, newMealCount, newAverage, tracker.id]
       );
     } else {
+      const newCarbon = parseFloat(carbonFootprint) || 0;
       await db.execute(
         'INSERT INTO weekly_tracker (user_id, week_start_date, total_carbon_footprint, total_meals, average_carbon_per_meal) VALUES (?, ?, ?, 1, ?)',
-        [userId, weekStart, carbonFootprint, carbonFootprint]
+        [userId, weekStart, newCarbon, newCarbon]
       );
     }
   } catch (error) {

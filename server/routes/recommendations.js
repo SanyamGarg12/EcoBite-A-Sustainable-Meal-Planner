@@ -22,41 +22,59 @@ router.get('/alternatives/:ingredient_id', async (req, res) => {
       ? JSON.parse(originalIngredient.nutritional_value)
       : originalIngredient.nutritional_value;
     
-    // Find alternatives with lower carbon footprint and similar nutritional profile
+    // Find alternatives with lower carbon footprint
+    // Get more candidates to allow for better filtering
     const [alternatives] = await db.execute(
       `SELECT * FROM ingredients 
        WHERE id != ? 
        AND carbon_footprint_per_kg < ?
        ORDER BY carbon_footprint_per_kg ASC
-       LIMIT 10`,
+       LIMIT 20`,
       [ingredientId, originalIngredient.carbon_footprint_per_kg]
     );
     
-    // Score alternatives based on nutritional similarity and carbon reduction
+    // Score alternatives based on multiple factors
     const scoredAlternatives = alternatives.map(alt => {
       const altNutrition = typeof alt.nutritional_value === 'string'
         ? JSON.parse(alt.nutritional_value)
         : alt.nutritional_value;
       
-      // Calculate nutritional similarity score (0-100)
-      const proteinDiff = Math.abs(altNutrition.protein - originalNutrition.protein);
-      const carbsDiff = Math.abs(altNutrition.carbs - originalNutrition.carbs);
-      const fatsDiff = Math.abs(altNutrition.fats - originalNutrition.fats);
-      const caloriesDiff = Math.abs(altNutrition.calories - originalNutrition.calories);
+      // 1. Category similarity score (0-100)
+      // Same category = 100, different category = 0
+      const categoryScore = alt.category === originalIngredient.category ? 100 : 0;
       
-      const nutritionScore = 100 - ((proteinDiff + carbsDiff + fatsDiff + caloriesDiff / 10) / 4);
+      // 2. Calculate nutritional similarity score (0-100)
+      // Normalize differences to percentages of original values to make comparison fair
+      const proteinDiff = originalNutrition.protein > 0 
+        ? Math.abs(altNutrition.protein - originalNutrition.protein) / originalNutrition.protein * 100
+        : Math.abs(altNutrition.protein - originalNutrition.protein);
+      const carbsDiff = originalNutrition.carbs > 0
+        ? Math.abs(altNutrition.carbs - originalNutrition.carbs) / originalNutrition.carbs * 100
+        : Math.abs(altNutrition.carbs - originalNutrition.carbs);
+      const fatsDiff = originalNutrition.fats > 0
+        ? Math.abs(altNutrition.fats - originalNutrition.fats) / originalNutrition.fats * 100
+        : Math.abs(altNutrition.fats - originalNutrition.fats);
+      const caloriesDiff = originalNutrition.calories > 0
+        ? Math.abs(altNutrition.calories - originalNutrition.calories) / originalNutrition.calories * 100
+        : Math.abs(altNutrition.calories - originalNutrition.calories);
       
-      // Calculate carbon reduction percentage
+      // Average the normalized differences and convert to similarity score
+      const avgDiff = (proteinDiff + carbsDiff + fatsDiff + caloriesDiff) / 4;
+      const nutritionScore = Math.max(0, 100 - avgDiff);
+      
+      // 3. Calculate carbon reduction percentage
       const carbonReduction = ((originalIngredient.carbon_footprint_per_kg - alt.carbon_footprint_per_kg) / originalIngredient.carbon_footprint_per_kg) * 100;
       
-      // Overall score (weighted: 40% nutrition, 60% carbon reduction)
-      const overallScore = (nutritionScore * 0.4) + (Math.min(carbonReduction, 100) * 0.6);
+      // 4. Overall score (weighted: 30% category, 30% nutrition, 40% carbon reduction)
+      // Category similarity is important for practical substitutions
+      const overallScore = (categoryScore * 0.3) + (nutritionScore * 0.3) + (Math.min(carbonReduction, 100) * 0.4);
       
       return {
         ...alt,
         nutritional_value: altNutrition,
         carbon_reduction_percent: parseFloat(carbonReduction.toFixed(2)),
         nutrition_similarity_score: parseFloat(nutritionScore.toFixed(2)),
+        category_similarity: categoryScore,
         overall_score: parseFloat(overallScore.toFixed(2))
       };
     });

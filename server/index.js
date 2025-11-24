@@ -12,11 +12,13 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/ingredients', require('./routes/ingredients'));
 app.use('/api/meals', require('./routes/meals'));
 app.use('/api/calculator', require('./routes/calculator'));
 app.use('/api/recommendations', require('./routes/recommendations'));
 app.use('/api/tracker', require('./routes/tracker'));
+app.use('/api/insights', require('./routes/insights'));
 
 // Health check
 app.get('/api/health', (req, res) => {
