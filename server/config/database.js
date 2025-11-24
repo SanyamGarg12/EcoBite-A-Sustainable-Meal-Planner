@@ -10,7 +10,8 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME || 'ecobite',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  dateStrings: true // Force DATE and DATETIME fields to be returned as strings instead of Date objects
 });
 
 module.exports = pool;

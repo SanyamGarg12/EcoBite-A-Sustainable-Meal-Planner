@@ -65,39 +65,123 @@ function Tracker() {
     return <div className="loading">Loading...</div>;
   }
 
-  const weeklyChartData = (weeklyHistory || []).map(week => ({
-    week: new Date(week.week_start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    carbon: parseFloat(week.total_carbon_footprint || 0) || 0,
-    meals: parseInt(week.total_meals || 0) || 0
-  })).reverse();
+  const weeklyChartData = (weeklyHistory || [])
+    .filter(week => week && week.week_start_date) // Filter out invalid entries
+    .map(week => {
+      try {
+        // Parse week start date as local to avoid timezone issues
+        let dateString = week.week_start_date;
+        if (dateString && dateString.includes('T')) {
+          dateString = dateString.split('T')[0];
+        }
+        
+        if (!dateString || !dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          console.warn('Invalid week_start_date format:', week.week_start_date);
+          return null;
+        }
+        
+        const [year, month, day] = dateString.split('-').map(Number);
+        if (isNaN(year) || isNaN(month) || isNaN(day)) {
+          console.warn('Invalid date components:', { year, month, day });
+          return null;
+        }
+        
+        const weekStartDate = new Date(year, month - 1, day);
+        if (isNaN(weekStartDate.getTime())) {
+          console.warn('Invalid date object created from:', { year, month, day });
+          // Fallback: use the date string as-is
+          return {
+            week: dateString,
+            weekStart: dateString,
+            carbon: parseFloat(week.total_carbon_footprint || 0) || 0,
+            meals: parseInt(week.total_meals || 0) || 0
+          };
+        }
+        
+        const weekEndDate = new Date(weekStartDate);
+        weekEndDate.setDate(weekEndDate.getDate() + 6); // Add 6 days to get Sunday
+        
+        // Format as "Nov 24 - Nov 30"
+        const weekStartStr = weekStartDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const weekEndStr = weekEndDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        
+        // Validate the formatted strings
+        if (weekStartStr === 'Invalid Date' || weekEndStr === 'Invalid Date') {
+          console.warn('Date formatting failed, using date string:', dateString);
+          return {
+            week: dateString,
+            weekStart: dateString,
+            carbon: parseFloat(week.total_carbon_footprint || 0) || 0,
+            meals: parseInt(week.total_meals || 0) || 0
+          };
+        }
+        
+        const weekLabel = `${weekStartStr} - ${weekEndStr}`;
+        
+        return {
+          week: weekLabel,
+          weekStart: dateString, // Keep for sorting
+          carbon: parseFloat(week.total_carbon_footprint || 0) || 0,
+          meals: parseInt(week.total_meals || 0) || 0
+        };
+      } catch (error) {
+        console.error('Error processing week data:', error, week);
+        return null;
+      }
+    })
+    .filter(item => item !== null) // Remove any null entries
+    .sort((a, b) => a.weekStart.localeCompare(b.weekStart)); // Sort by week start date
 
-  const dailyChartData = (dailyMeals || []).reduce((acc, meal) => {
-    if (!meal || !meal.date) return acc;
-    let dateString = meal.date;
-    if (meal.date && meal.date.includes('T')) {
-      dateString = meal.date.split('T')[0];
-    }
-    const existing = acc.find(item => item.originalDate === dateString);
-    const carbonValue = parseFloat(meal.carbon_footprint || 0) || 0;
-    if (existing) {
-      existing.carbon += carbonValue;
-      existing.meals += 1;
-    } else {
-      // Parse date as local to avoid timezone issues
-      const [year, month, day] = dateString.split('-').map(Number);
-      const dateObj = new Date(year, month - 1, day);
-      acc.push({
-        originalDate: dateString,
-        date: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        carbon: carbonValue,
-        meals: 1
-      });
-    }
-    return acc;
-  }, []).sort((a, b) => {
-    // Sort by date string directly (YYYY-MM-DD format)
-    return a.originalDate.localeCompare(b.originalDate);
-  }).slice(-7);
+  // Process daily meals - aggregate by date
+  // Dates should now always be strings in YYYY-MM-DD format from the backend
+  const dailyChartData = (dailyMeals || [])
+    .filter(meal => meal && meal.date) // Filter out invalid entries
+    .reduce((acc, meal) => {
+      // Extract date string - should already be YYYY-MM-DD from backend
+      let dateString = String(meal.date).trim();
+      
+      // Remove any time component if present
+      if (dateString.includes('T')) {
+        dateString = dateString.split('T')[0];
+      }
+      if (dateString.includes(' ')) {
+        dateString = dateString.split(' ')[0];
+      }
+      
+      // Validate date format
+      if (!dateString || !dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        console.warn('Invalid date format:', meal.date, '->', dateString);
+        return acc;
+      }
+      
+      const existing = acc.find(item => item.originalDate === dateString);
+      const carbonValue = parseFloat(meal.carbon_footprint || 0) || 0;
+      
+      if (existing) {
+        existing.carbon += carbonValue;
+        existing.meals += 1;
+      } else {
+        // Parse date as local to avoid timezone issues
+        const [year, month, day] = dateString.split('-').map(Number);
+        const dateObj = new Date(year, month - 1, day);
+        
+        // Format as readable date
+        const displayDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        
+        acc.push({
+          originalDate: dateString,
+          date: displayDate,
+          carbon: carbonValue,
+          meals: 1
+        });
+      }
+      return acc;
+    }, [])
+    .sort((a, b) => {
+      // Sort by date string directly (YYYY-MM-DD format)
+      return a.originalDate.localeCompare(b.originalDate);
+    })
+    .slice(-7); // Show last 7 days
 
   return (
     <div className="tracker-page">
@@ -192,9 +276,12 @@ function Tracker() {
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={weeklyChartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="week" />
+                    <XAxis dataKey="week" angle={-45} textAnchor="end" height={80} />
                     <YAxis />
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value, name) => [name === 'carbon' ? `${value.toFixed(2)} kg CO₂` : value, name === 'carbon' ? 'Carbon Footprint' : 'Meals']}
+                      labelFormatter={(label) => `Week: ${label}`}
+                    />
                     <Legend />
                     <Line type="monotone" dataKey="carbon" stroke="#667eea" strokeWidth={2} name="Carbon (kg CO₂)" />
                   </LineChart>
@@ -252,14 +339,29 @@ function Tracker() {
             {dailyMeals.length > 0 ? (
               <div className="meals-list">
                 {dailyMeals.slice(0, 10).map((meal, index) => {
-                  // Format date properly - handle both date strings and timestamps
-                  let dateString = meal.date;
-                  if (meal.date && meal.date.includes('T')) {
-                    // If it's a timestamp, extract just the date part
-                    dateString = meal.date.split('T')[0];
+                  // Extract date string - should already be YYYY-MM-DD from backend
+                  let dateString = String(meal.date || '').trim();
+                  
+                  // Remove any time component if present
+                  if (dateString.includes('T')) {
+                    dateString = dateString.split('T')[0];
+                  }
+                  if (dateString.includes(' ')) {
+                    dateString = dateString.split(' ')[0];
                   }
                   
-                  // Parse date as local (not UTC) to avoid timezone shifts
+                  // Validate and parse date as local (not UTC) to avoid timezone shifts
+                  if (!dateString || !dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    console.warn('Invalid date format in meal:', meal.date, '->', dateString);
+                    return (
+                      <div key={index} className="meal-item">
+                        <div className="meal-name">{meal.meal_name || 'Unknown Meal'}</div>
+                        <div className="meal-date">Invalid Date</div>
+                        <div className="meal-carbon">{parseFloat(meal.carbon_footprint || 0).toFixed(2)} kg CO₂</div>
+                      </div>
+                    );
+                  }
+                  
                   // Split YYYY-MM-DD and create date in local timezone
                   const [year, month, day] = dateString.split('-').map(Number);
                   const dateObj = new Date(year, month - 1, day); // month is 0-indexed

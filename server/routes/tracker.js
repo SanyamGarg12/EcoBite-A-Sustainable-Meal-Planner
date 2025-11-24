@@ -66,7 +66,8 @@ router.get('/daily/:user_id', async (req, res) => {
     const userId = req.params.user_id;
     const { start_date, end_date } = req.query;
     
-    let query = 'SELECT dm.*, m.name as meal_name FROM daily_meals dm LEFT JOIN meals m ON dm.meal_id = m.id WHERE dm.user_id = ?';
+    // Use DATE_FORMAT to ensure dates are returned as strings in YYYY-MM-DD format
+    let query = 'SELECT dm.id, dm.user_id, dm.meal_id, DATE_FORMAT(dm.date, "%Y-%m-%d") as date, dm.carbon_footprint, dm.created_at, m.name as meal_name FROM daily_meals dm LEFT JOIN meals m ON dm.meal_id = m.id WHERE dm.user_id = ?';
     const params = [userId];
     
     if (start_date && end_date) {
@@ -87,7 +88,14 @@ router.get('/daily/:user_id', async (req, res) => {
     
     const [meals] = await db.execute(query, params);
     
-    res.json(meals);
+    // Dates are already formatted as YYYY-MM-DD strings by DATE_FORMAT
+    // Just ensure they're clean strings
+    const formattedMeals = meals.map(meal => ({
+      ...meal,
+      date: meal.date ? String(meal.date).trim() : null
+    }));
+    
+    res.json(formattedMeals);
   } catch (error) {
     console.error('Error fetching daily meals:', error);
     res.status(500).json({ error: 'Failed to fetch daily meals' });
@@ -106,12 +114,25 @@ router.get('/stats/:user_id', async (req, res) => {
       [userId, weekStart]
     );
     
-    // Last 7 days total
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // Last 7 days total (including today)
+    const today = new Date();
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // -6 to include today (7 days total)
+    
+    // Format dates as YYYY-MM-DD in local timezone
+    const formatLocalDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const sevenDaysAgoStr = formatLocalDate(sevenDaysAgo);
+    const todayStr = formatLocalDate(today);
+    
     const [last7Days] = await db.execute(
-      'SELECT SUM(carbon_footprint) as total, COUNT(*) as meal_count FROM daily_meals WHERE user_id = ? AND date >= ?',
-      [userId, sevenDaysAgo.toISOString().split('T')[0]]
+      'SELECT SUM(carbon_footprint) as total, COUNT(*) as meal_count FROM daily_meals WHERE user_id = ? AND date >= ? AND date <= ?',
+      [userId, sevenDaysAgoStr, todayStr]
     );
     
     // All time stats
@@ -174,10 +195,25 @@ router.get('/stats/:user_id', async (req, res) => {
 
 // Helper function to get week start date (Monday)
 function getWeekStartDate(date) {
-  const d = new Date(date);
+  // Handle both Date objects and date strings (YYYY-MM-DD)
+  let d;
+  if (typeof date === 'string') {
+    // Parse date string as local date to avoid timezone issues
+    const [year, month, day] = date.split('-').map(Number);
+    d = new Date(year, month - 1, day);
+  } else {
+    d = new Date(date);
+  }
+  
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff)).toISOString().split('T')[0];
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  const weekStart = new Date(d.setDate(diff));
+  
+  // Format as YYYY-MM-DD in local timezone
+  const year = weekStart.getFullYear();
+  const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+  const dayOfMonth = String(weekStart.getDate()).padStart(2, '0');
+  return `${year}-${month}-${dayOfMonth}`;
 }
 
 module.exports = router;
