@@ -47,8 +47,8 @@ function Navbar() {
                 </Link>
               </li>
               <li>
-                <Link to="/insights" className={`nav-link ${isActive('/insights')}`}>
-                  Insights
+                <Link to="/my-meals" className={`nav-link ${isActive('/my-meals')}`}>
+                  My Meals
                 </Link>
               </li>
             </>

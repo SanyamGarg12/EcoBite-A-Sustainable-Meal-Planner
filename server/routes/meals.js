@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 
-// Get all meals for a user
+// Get all meals for a user (with ingredients if include_ingredients=true)
 router.get('/', async (req, res) => {
   try {
-    const { user_id } = req.query;
+    const { user_id, include_ingredients } = req.query;
     let query = 'SELECT * FROM meals';
     const params = [];
     
@@ -17,6 +17,27 @@ router.get('/', async (req, res) => {
     query += ' ORDER BY created_at DESC';
     
     const [meals] = await db.execute(query, params);
+    
+    // If include_ingredients is true, fetch ingredients for each meal
+    if (include_ingredients === 'true') {
+      for (const meal of meals) {
+        const [ingredients] = await db.execute(
+          `SELECT mi.*, i.name, i.category, i.carbon_footprint_per_kg, i.nutritional_value
+           FROM meal_ingredients mi
+           JOIN ingredients i ON mi.ingredient_id = i.id
+           WHERE mi.meal_id = ?`,
+          [meal.id]
+        );
+        
+        meal.ingredients = ingredients.map(ing => ({
+          ...ing,
+          nutritional_value: typeof ing.nutritional_value === 'string'
+            ? JSON.parse(ing.nutritional_value)
+            : ing.nutritional_value
+        }));
+      }
+    }
+    
     res.json(meals);
   } catch (error) {
     console.error('Error fetching meals:', error);

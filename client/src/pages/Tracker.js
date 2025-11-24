@@ -200,46 +200,68 @@ function Tracker() {
         <>
           {/* Quick Log Meal Section */}
           <div className="log-meal-card">
-            <h2>📝 Log a Meal</h2>
-            <div className="log-meal-content">
-              <div className="log-meal-date-group">
-                <label>Select Date</label>
+            <div className="log-meal-header">
+              <div>
+                <h2>📝 Log a Meal</h2>
+                <p className="log-meal-subtitle">Quickly log your meals to track your sustainability impact</p>
+              </div>
+            </div>
+            
+            <div className="log-meal-body">
+              <div className="log-meal-date-section">
+                <label className="log-meal-label">
+                  <span className="label-icon">📅</span>
+                  Select Date
+                </label>
                 <input
                   type="date"
                   value={selectedDate}
                   onChange={(e) => setSelectedDate(e.target.value)}
+                  className="log-meal-date-input"
                 />
               </div>
-              <div className="log-meal-buttons">
+              
+              <div className="log-meal-meals-section">
+                <label className="log-meal-label">
+                  <span className="label-icon">🍽️</span>
+                  Choose Meal to Log
+                </label>
                 {savedMeals.length > 0 ? (
-                  <div className="meals-buttons-grid">
-                    {savedMeals.slice(0, 5).map((meal) => (
+                  <div className="meals-buttons-container">
+                    {savedMeals.slice(0, 6).map((meal) => (
                       <button
                         key={meal.id}
                         onClick={() => logMeal(meal.id, selectedDate)}
                         disabled={loggingMeal}
                         className="meal-log-button"
+                        title={`Log ${meal.name} for ${new Date(selectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
                       >
-                        {loggingMeal ? 'Logging...' : `Log ${meal.name}`}
+                        <span className="meal-button-icon">✓</span>
+                        <span className="meal-button-text">{meal.name}</span>
                       </button>
                     ))}
                   </div>
                 ) : (
                   <div className="no-meals-message">
-                    <p>
+                    <div className="no-meals-icon">🍴</div>
+                    <p className="no-meals-text">
                       No saved meals yet. Create meals in the Calculator first!
                     </p>
                     <Link to="/calculator" className="calculator-link-button">
-                      Go to Calculator →
+                      <span>Go to Calculator</span>
+                      <span className="arrow-icon">→</span>
                     </Link>
                   </div>
                 )}
               </div>
             </div>
-            {savedMeals.length > 5 && (
-              <p style={{ marginTop: '16px', fontSize: '13px', opacity: 0.9 }}>
-                Showing 5 of {savedMeals.length} saved meals. Create more in Calculator.
-              </p>
+            
+            {savedMeals.length > 6 && (
+              <div className="log-meal-footer">
+                <p>
+                  Showing 6 of {savedMeals.length} saved meals. <Link to="/calculator" style={{ color: 'white', textDecoration: 'underline' }}>Create more</Link>
+                </p>
+              </div>
             )}
           </div>
 

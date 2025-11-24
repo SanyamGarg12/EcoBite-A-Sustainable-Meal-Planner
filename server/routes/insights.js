@@ -13,7 +13,7 @@ router.get('/patterns/:user_id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    // Get most consumed ingredients
+    // Get most consumed ingredients (from meals that have ingredients)
     const [topIngredients] = await db.execute(
       `SELECT 
         i.name, 
@@ -31,7 +31,7 @@ router.get('/patterns/:user_id', authenticateToken, async (req, res) => {
       [userId]
     );
 
-    // Get category distribution
+    // Get category distribution (from meals that have ingredients)
     const [categoryDist] = await db.execute(
       `SELECT 
         i.category,
@@ -47,10 +47,23 @@ router.get('/patterns/:user_id', authenticateToken, async (req, res) => {
       [userId]
     );
 
-    // Get weekly trends
+    // Get meal statistics from daily_meals (works even without ingredients)
+    // Use IFNULL to handle NULL values from SUM/AVG when no rows exist
+    const [mealStats] = await db.execute(
+      `SELECT 
+        COUNT(DISTINCT dm.id) as total_logged_meals,
+        COUNT(DISTINCT dm.date) as days_with_meals,
+        IFNULL(SUM(dm.carbon_footprint), 0) as total_carbon,
+        IFNULL(AVG(dm.carbon_footprint), 0) as avg_carbon_per_meal
+      FROM daily_meals dm
+      WHERE dm.user_id = ?`,
+      [userId]
+    );
+
+    // Get weekly trends - format dates as strings to avoid timezone issues
     const [weeklyTrends] = await db.execute(
       `SELECT 
-        week_start_date,
+        DATE_FORMAT(week_start_date, "%Y-%m-%d") as week_start_date,
         total_carbon_footprint,
         total_meals,
         average_carbon_per_meal
@@ -69,11 +82,21 @@ router.get('/patterns/:user_id', authenticateToken, async (req, res) => {
       isImproving: weeklyTrends[0].total_carbon_footprint < weeklyTrends[1].total_carbon_footprint
     } : null;
 
+    // Ensure mealStats has proper defaults
+    const stats = mealStats[0] || {};
+    const safeMealStats = {
+      total_logged_meals: parseInt(stats.total_logged_meals) || 0,
+      days_with_meals: parseInt(stats.days_with_meals) || 0,
+      total_carbon: parseFloat(stats.total_carbon) || 0,
+      avg_carbon_per_meal: parseFloat(stats.avg_carbon_per_meal) || 0
+    };
+
     res.json({
-      topIngredients,
-      categoryDistribution: categoryDist,
-      weeklyTrends: weeklyTrends.reverse(),
-      improvement
+      topIngredients: topIngredients || [],
+      categoryDistribution: categoryDist || [],
+      weeklyTrends: (weeklyTrends || []).reverse(),
+      improvement,
+      mealStats: safeMealStats
     });
   } catch (error) {
     console.error('Error fetching patterns:', error);
@@ -91,9 +114,10 @@ router.get('/nutrition/:user_id', authenticateToken, async (req, res) => {
     }
 
     // Get average nutritional intake from logged meals
+    // Use IFNULL to handle NULL values when no rows exist
     const [nutritionData] = await db.execute(
       `SELECT 
-        AVG(m.total_calories) as avg_calories,
+        IFNULL(AVG(m.total_calories), 0) as avg_calories,
         COUNT(DISTINCT dm.date) as days_logged
       FROM daily_meals dm
       JOIN meals m ON dm.meal_id = m.id
@@ -135,8 +159,12 @@ router.get('/nutrition/:user_id', authenticateToken, async (req, res) => {
       })
     );
 
+    const nutrition = nutritionData[0] || {};
     res.json({
-      averageNutrition: nutritionData[0] || { avg_calories: 0, days_logged: 0 },
+      averageNutrition: {
+        avg_calories: parseFloat(nutrition.avg_calories) || 0,
+        days_logged: parseInt(nutrition.days_logged) || 0
+      },
       optimizationSuggestions: suggestionsWithAlternatives
     });
   } catch (error) {

@@ -174,5 +174,7 @@ export default {
   getWeeklyHistory,
   getDailyMeals,
   getStats,
+  getMealPatterns,
+  getNutritionInsights,
 };
 

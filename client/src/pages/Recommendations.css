@@ -2,6 +2,28 @@
   padding: 20px 0;
 }
 
+.page-header {
+  text-align: left;
+  color: #333;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+  color: #333;
+}
+
+.page-header p {
+  font-size: 0.95rem;
+  color: #666;
+  margin: 0;
+  font-weight: 400;
+}
+
 .ingredient-card {
   background: #f8f9fa;
   border-radius: 8px;

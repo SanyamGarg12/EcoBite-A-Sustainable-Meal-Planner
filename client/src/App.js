@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Calculator from './pages/Calculator';
 import Recommendations from './pages/Recommendations';
 import Tracker from './pages/Tracker';
-import Insights from './pages/Insights';
+import MyMeals from './pages/MyMeals';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import './App.css';
@@ -34,10 +34,10 @@ function App() {
                 }
               />
               <Route
-                path="/insights"
+                path="/my-meals"
                 element={
                   <ProtectedRoute>
-                    <Insights />
+                    <MyMeals />
                   </ProtectedRoute>
                 }
               />
