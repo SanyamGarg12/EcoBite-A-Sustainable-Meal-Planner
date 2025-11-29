@@ -296,12 +296,19 @@ function Tracker() {
               <h2>Weekly Carbon Footprint Trend</h2>
               {weeklyChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={weeklyChartData}>
+                  <LineChart data={weeklyChartData} margin={{ bottom: 60 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="week" angle={-45} textAnchor="end" height={80} />
+                    <XAxis 
+                      dataKey="week" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={80}
+                      interval={0}
+                      tick={{ fontSize: 11 }}
+                    />
                     <YAxis />
                     <Tooltip 
-                      formatter={(value, name) => [name === 'carbon' ? `${value.toFixed(2)} kg CO₂` : value, name === 'carbon' ? 'Carbon Footprint' : 'Meals']}
+                      formatter={(value) => [`${parseFloat(value).toFixed(2)} kg CO₂`, 'Carbon Footprint']}
                       labelFormatter={(label) => `Week: ${label}`}
                     />
                     <Legend />
@@ -339,11 +346,21 @@ function Tracker() {
               <h2>Weekly Meal Count</h2>
               {weeklyChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={weeklyChartData}>
+                  <BarChart data={weeklyChartData} margin={{ bottom: 60 }}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="week" />
+                    <XAxis 
+                      dataKey="week" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={80}
+                      interval={0}
+                      tick={{ fontSize: 11 }}
+                    />
                     <YAxis />
-                    <Tooltip />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Number of Meals']}
+                      labelFormatter={(label) => `Week: ${label}`}
+                    />
                     <Legend />
                     <Bar dataKey="meals" fill="#28a745" name="Number of Meals" />
                   </BarChart>

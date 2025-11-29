@@ -47,13 +47,51 @@ router.get('/weekly/:user_id/history', async (req, res) => {
     let limit = parseInt(req.query.limit) || 12;
     limit = Math.max(1, Math.min(limit, 100)); // Clamp between 1 and 100 for safety
     
-    // LIMIT cannot use parameter placeholder, so we insert it directly (after sanitization)
+    // Get weekly tracker data with formatted dates
     const [trackers] = await db.execute(
-      `SELECT * FROM weekly_tracker WHERE user_id = ? ORDER BY week_start_date DESC LIMIT ${limit}`,
+      `SELECT id, user_id, DATE_FORMAT(week_start_date, "%Y-%m-%d") as week_start_date, total_carbon_footprint, total_meals, average_carbon_per_meal FROM weekly_tracker WHERE user_id = ? ORDER BY week_start_date DESC LIMIT ${limit}`,
       [userId]
     );
     
-    res.json(trackers);
+    // For each week, calculate actual meal count from daily_meals
+    const weeksWithActualCounts = await Promise.all(
+      trackers.map(async (tracker) => {
+        // Get week start and end dates
+        const weekStart = tracker.week_start_date;
+        const [year, month, day] = weekStart.split('-').map(Number);
+        const weekStartDate = new Date(year, month - 1, day);
+        const weekEndDate = new Date(weekStartDate);
+        weekEndDate.setDate(weekEndDate.getDate() + 6);
+        
+        // Format dates as YYYY-MM-DD
+        const formatLocalDate = (date) => {
+          const y = date.getFullYear();
+          const m = String(date.getMonth() + 1).padStart(2, '0');
+          const d = String(date.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        };
+        
+        const weekStartStr = formatLocalDate(weekStartDate);
+        const weekEndStr = formatLocalDate(weekEndDate);
+        
+        // Count actual meals from daily_meals for this week
+        const [mealCounts] = await db.execute(
+          'SELECT COUNT(*) as count FROM daily_meals WHERE user_id = ? AND date >= ? AND date <= ?',
+          [userId, weekStartStr, weekEndStr]
+        );
+        
+        const actualMealCount = parseInt(mealCounts[0]?.count || 0);
+        
+        // Return tracker data with actual meal count
+        return {
+          ...tracker,
+          total_meals: actualMealCount, // Use actual count from daily_meals
+          week_start_date: weekStart // Ensure it's formatted as YYYY-MM-DD
+        };
+      })
+    );
+    
+    res.json(weeksWithActualCounts);
   } catch (error) {
     console.error('Error fetching weekly history:', error);
     res.status(500).json({ error: 'Failed to fetch weekly history' });
